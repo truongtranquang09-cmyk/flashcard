@@ -140,7 +140,7 @@ async function DeckContent({ params, searchParams }: DeckPageProps) {
             >
               <div className="grid flex-1 gap-1 sm:grid-cols-2 sm:gap-4">
                 <p className="font-jp text-lg font-semibold text-slate-800">
-                  {card.reading ? (
+                  {card.reading?.trim() ? (
                     <ruby>
                       {card.front}
                       <rt className="text-xs font-normal text-slate-500">

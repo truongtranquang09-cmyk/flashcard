@@ -1,7 +1,11 @@
 "use client";
 
 import { useState, type FormEvent } from "react";
-import { createCard, updateCard } from "@/app/decks/[id]/actions";
+import {
+  createCard,
+  generateCardFromWord,
+  updateCard,
+} from "@/app/decks/[id]/actions";
 import { Button, buttonClass } from "@/components/Button";
 import { Input, Textarea } from "@/components/Input";
 import { Modal } from "@/components/Modal";
@@ -24,10 +28,47 @@ export function CardFormModal({ deckId, card }: CardFormModalProps) {
   const [open, setOpen] = useState(false);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [front, setFront] = useState("");
+  const [reading, setReading] = useState("");
+  const [back, setBack] = useState("");
+  const [example, setExample] = useState("");
+  const [exampleVi, setExampleVi] = useState("");
+  const [aiPending, setAiPending] = useState(false);
+  const [aiError, setAiError] = useState<string | null>(null);
 
   function handleOpen() {
     setError(null);
+    setAiError(null);
+    setFront(card?.front ?? "");
+    setReading(card?.reading ?? "");
+    setBack(card?.back ?? "");
+    setExample(card?.example ?? "");
+    setExampleVi(card?.exampleVi ?? "");
     setOpen(true);
+  }
+
+  async function handleGenerate() {
+    const word = front.trim();
+    setAiError(null);
+
+    if (!word) {
+      setAiError("Nhập từ cần tạo trước.");
+      return;
+    }
+
+    setAiPending(true);
+    const result = await generateCardFromWord(word);
+    setAiPending(false);
+
+    if (!result.ok) {
+      setAiError(result.error);
+      return;
+    }
+
+    setReading(result.card.reading);
+    setBack(result.card.meaningVi);
+    setExample(result.card.example);
+    setExampleVi(result.card.exampleVi);
   }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -61,38 +102,59 @@ export function CardFormModal({ deckId, card }: CardFormModalProps) {
           <form onSubmit={handleSubmit} className="flex flex-col gap-4">
             <input type="hidden" name="deckId" value={deckId} />
             {card && <input type="hidden" name="id" value={card.id} />}
-            <Input
-              label="Từ / kanji (mặt trước)"
-              name="front"
-              defaultValue={card?.front}
-              className="font-jp"
-              maxLength={100}
-              required
-            />
+            <div className="flex items-end gap-2">
+              <div className="min-w-0 flex-1">
+                <Input
+                  label="Từ / kanji (mặt trước)"
+                  name="front"
+                  value={front}
+                  onChange={(event) => setFront(event.target.value)}
+                  className="font-jp"
+                  maxLength={100}
+                  required
+                />
+              </div>
+              {!card && (
+                <Button
+                  type="button"
+                  variant="secondary"
+                  onClick={handleGenerate}
+                  disabled={aiPending || pending}
+                  className="shrink-0 whitespace-nowrap"
+                >
+                  {aiPending ? "Đang tạo..." : "✨ Tạo bằng AI"}
+                </Button>
+              )}
+            </div>
+            {aiError && <p className="text-sm text-rose-600">{aiError}</p>}
             <Input
               label="Cách đọc (hiragana)"
               name="reading"
-              defaultValue={card?.reading ?? ""}
+              value={reading}
+              onChange={(event) => setReading(event.target.value)}
               className="font-jp"
               maxLength={200}
             />
             <Input
               label="Nghĩa tiếng Việt"
               name="back"
-              defaultValue={card?.back}
+              value={back}
+              onChange={(event) => setBack(event.target.value)}
               maxLength={300}
               required
             />
             <Textarea
               label="Câu ví dụ (tiếng Nhật)"
               name="example"
-              defaultValue={card?.example ?? ""}
+              value={example}
+              onChange={(event) => setExample(event.target.value)}
               className="font-jp"
             />
             <Textarea
               label="Nghĩa câu ví dụ"
               name="exampleVi"
-              defaultValue={card?.exampleVi ?? ""}
+              value={exampleVi}
+              onChange={(event) => setExampleVi(event.target.value)}
             />
             {error && <p className="text-sm text-rose-600">{error}</p>}
             <div className="flex justify-end gap-2">

@@ -5,7 +5,22 @@ import { revalidatePath } from "next/cache";
 import { db } from "@/db";
 import { cards, decks } from "@/db/schema";
 import type { ActionResult } from "@/lib/action-result";
+import { generateCard, type GeneratedCard } from "@/lib/ai";
 import { isUuid } from "@/lib/ids";
+
+export type GenerateCardActionResult =
+  | { ok: true; card: GeneratedCard }
+  | { ok: false; error: string };
+
+export async function generateCardFromWord(
+  word: string,
+): Promise<GenerateCardActionResult> {
+  try {
+    return await generateCard(word);
+  } catch {
+    return { ok: false, error: "Không tạo được thẻ bằng AI. Hãy thử lại." };
+  }
+}
 
 function readText(formData: FormData, key: string): string {
   const value = formData.get(key);

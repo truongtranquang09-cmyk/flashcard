@@ -5,6 +5,7 @@ import { deleteDeck } from "@/app/decks/actions";
 import { DeckFormModal } from "@/app/decks/DeckFormModal";
 import { buttonClass } from "@/components/Button";
 import { DeleteButton } from "@/components/DeleteButton";
+import { StudyButton } from "@/components/StudyButton";
 import { db } from "@/db";
 import { cards, decks } from "@/db/schema";
 
@@ -72,12 +73,12 @@ async function DeckList() {
               </div>
               <div className="relative z-10 mt-auto flex flex-wrap items-center gap-2">
                 {deck.dueCount > 0 ? (
-                  <Link
-                    href={`/decks/${deck.id}/study`}
+                  <StudyButton
+                    deckId={deck.id}
                     className={buttonClass("primary")}
                   >
                     Học ngay
-                  </Link>
+                  </StudyButton>
                 ) : (
                   <span
                     aria-disabled="true"
