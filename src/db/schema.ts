@@ -1,3 +1,4 @@
+import { sql } from "drizzle-orm";
 import {
   index,
   integer,
@@ -6,14 +7,23 @@ import {
   smallint,
   text,
   timestamp,
+  uniqueIndex,
   uuid,
 } from "drizzle-orm/pg-core";
 
-export const decks = pgTable("decks", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  name: text("name").notNull(),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
-});
+export const decks = pgTable(
+  "decks",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    name: text("name").notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (table) => [
+    uniqueIndex("decks_name_normalized_idx").on(
+      sql`lower(btrim(${table.name}))`,
+    ),
+  ],
+);
 
 export const cards = pgTable(
   "cards",
@@ -36,6 +46,10 @@ export const cards = pgTable(
   (table) => [
     index("cards_deck_id_idx").on(table.deckId),
     index("cards_due_at_idx").on(table.dueAt),
+    uniqueIndex("cards_deck_front_normalized_idx").on(
+      table.deckId,
+      sql`lower(btrim(${table.front}))`,
+    ),
   ],
 );
 

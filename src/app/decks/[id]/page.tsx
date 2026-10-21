@@ -88,7 +88,25 @@ async function DeckContent({ params, searchParams }: DeckPageProps) {
               {deckCardCount} thẻ
             </span>
           </h1>
-          <CardFormModal deckId={deck.id} />
+          <div className="flex flex-wrap items-center gap-2">
+            {deckCardCount > 0 && (
+              <>
+                <a
+                  href={`/api/export?deckId=${deck.id}`}
+                  className={`${buttonClass("primary")} px-3 py-1.5 text-xs`}
+                >
+                  Tải JSON
+                </a>
+                <a
+                  href={`/api/export-excel?deckId=${deck.id}`}
+                  className={`${buttonClass("excel")} px-3 py-1.5 text-xs`}
+                >
+                  Tải Excel
+                </a>
+              </>
+            )}
+            <CardFormModal deckId={deck.id} />
+          </div>
         </div>
       </div>
 

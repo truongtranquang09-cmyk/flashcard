@@ -1,0 +1,2 @@
+CREATE UNIQUE INDEX "cards_deck_front_normalized_idx" ON "cards" USING btree ("deck_id",lower(btrim("front")));--> statement-breakpoint
+CREATE UNIQUE INDEX "decks_name_normalized_idx" ON "decks" USING btree (lower(btrim("name")));

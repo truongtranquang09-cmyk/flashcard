@@ -1,11 +1,13 @@
 "use server";
 
-import { eq } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { db } from "@/db";
 import { cards, decks } from "@/db/schema";
 import type { ActionResult } from "@/lib/action-result";
 import { generateCard, type GeneratedCard } from "@/lib/ai";
+import { isUniqueViolation } from "@/lib/db-errors";
+import { normalizeKey } from "@/lib/duplicates";
 import { isUuid } from "@/lib/ids";
 
 export type GenerateCardActionResult =
@@ -31,6 +33,28 @@ function readOptionalText(formData: FormData, key: string): string | null {
   return readText(formData, key) || null;
 }
 
+function duplicateFrontError(front: string): string {
+  return `Từ "${front}" đã có trong deck này.`;
+}
+
+async function frontExistsInDeck(
+  deckId: string,
+  front: string,
+  excludeId?: string,
+): Promise<boolean> {
+  const conditions = [
+    eq(cards.deckId, deckId),
+    sql`lower(btrim(${cards.front})) = ${normalizeKey(front)}`,
+  ];
+  if (excludeId) conditions.push(sql`${cards.id} <> ${excludeId}`);
+
+  const [existing] = await db
+    .select({ id: cards.id })
+    .from(cards)
+    .where(and(...conditions));
+  return Boolean(existing);
+}
+
 export async function createCard(formData: FormData): Promise<ActionResult> {
   const deckId = String(formData.get("deckId") ?? "");
   const front = readText(formData, "front");
@@ -48,6 +72,10 @@ export async function createCard(formData: FormData): Promise<ActionResult> {
       .where(eq(decks.id, deckId));
     if (!existing) return { ok: false, error: "Deck không tồn tại." };
 
+    if (await frontExistsInDeck(deckId, front)) {
+      return { ok: false, error: duplicateFrontError(front) };
+    }
+
     await db.insert(cards).values({
       deckId,
       front,
@@ -60,7 +88,10 @@ export async function createCard(formData: FormData): Promise<ActionResult> {
     revalidatePath(`/decks/${deckId}`);
     revalidatePath("/");
     return { ok: true };
-  } catch {
+  } catch (error) {
+    if (isUniqueViolation(error)) {
+      return { ok: false, error: duplicateFrontError(front) };
+    }
     return { ok: false, error: "Không thêm được thẻ. Hãy thử lại." };
   }
 }
@@ -82,6 +113,10 @@ export async function updateCard(formData: FormData): Promise<ActionResult> {
       .where(eq(cards.id, id));
     if (!existing) return { ok: false, error: "Thẻ không tồn tại." };
 
+    if (await frontExistsInDeck(existing.deckId, front, id)) {
+      return { ok: false, error: duplicateFrontError(front) };
+    }
+
     await db
       .update(cards)
       .set({
@@ -95,7 +130,10 @@ export async function updateCard(formData: FormData): Promise<ActionResult> {
 
     revalidatePath(`/decks/${existing.deckId}`);
     return { ok: true };
-  } catch {
+  } catch (error) {
+    if (isUniqueViolation(error)) {
+      return { ok: false, error: duplicateFrontError(front) };
+    }
     return { ok: false, error: "Không cập nhật được thẻ. Hãy thử lại." };
   }
 }

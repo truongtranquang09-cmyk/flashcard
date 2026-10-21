@@ -1,60 +1,59 @@
-import { asc } from "drizzle-orm";
 import { connection } from "next/server";
-import { db } from "@/db";
-import { cards, decks } from "@/db/schema";
+import {
+  createZip,
+  loadExportDecks,
+  ZIP_CONTENT_TYPE,
+  type ExportDeck,
+} from "@/lib/export-files";
+import {
+  buildContentDisposition,
+  sanitizeFileName,
+  uniqueFileNames,
+} from "@/lib/file-name";
 
-type ExportCard = {
-  front: string;
-  reading: string | null;
-  back: string;
-  example: string | null;
-  exampleVi: string | null;
-};
+function deckJson(deck: ExportDeck): string {
+  return JSON.stringify({ decks: [deck] }, null, 2);
+}
 
-export async function GET() {
+export async function GET(request: Request) {
   await connection();
 
-  const deckRows = await db
-    .select({ id: decks.id, name: decks.name })
-    .from(decks)
-    .orderBy(asc(decks.createdAt), asc(decks.id));
+  const deckId = new URL(request.url).searchParams.get("deckId");
+  const decks = await loadExportDecks(deckId);
 
-  const cardRows = await db
-    .select({
-      deckId: cards.deckId,
-      front: cards.front,
-      reading: cards.reading,
-      back: cards.back,
-      example: cards.example,
-      exampleVi: cards.exampleVi,
-    })
-    .from(cards)
-    .orderBy(asc(cards.createdAt), asc(cards.id));
-
-  const cardsByDeck = new Map<string, ExportCard[]>();
-  for (const card of cardRows) {
-    const list = cardsByDeck.get(card.deckId) ?? [];
-    list.push({
-      front: card.front,
-      reading: card.reading,
-      back: card.back,
-      example: card.example,
-      exampleVi: card.exampleVi,
-    });
-    cardsByDeck.set(card.deckId, list);
+  if (!decks) {
+    return new Response("Deck không tồn tại.", { status: 404 });
   }
 
-  const payload = {
-    decks: deckRows.map((deck) => ({
-      name: deck.name,
-      cards: cardsByDeck.get(deck.id) ?? [],
-    })),
-  };
+  if (deckId !== null) {
+    const deck = decks[0];
+    return new Response(deckJson(deck), {
+      headers: {
+        "Content-Type": "application/json; charset=utf-8",
+        "Content-Disposition": buildContentDisposition(
+          `${sanitizeFileName(deck.name)}.json`,
+        ),
+      },
+    });
+  }
 
-  return new Response(JSON.stringify(payload, null, 2), {
+  const decksWithCards = decks.filter((deck) => deck.cards.length > 0);
+  if (decksWithCards.length === 0) {
+    return new Response("Không có deck nào có thẻ để xuất.", { status: 404 });
+  }
+
+  const baseNames = uniqueFileNames(decksWithCards.map((deck) => deck.name));
+  const zip = await createZip(
+    decksWithCards.map((deck, index) => ({
+      name: `${baseNames[index]}.json`,
+      content: deckJson(deck),
+    })),
+  );
+
+  return new Response(zip, {
     headers: {
-      "Content-Type": "application/json; charset=utf-8",
-      "Content-Disposition": 'attachment; filename="flashcard-web-export.json"',
+      "Content-Type": ZIP_CONTENT_TYPE,
+      "Content-Disposition": buildContentDisposition("flashcard-web-json.zip"),
     },
   });
 }

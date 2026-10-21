@@ -7,6 +7,7 @@ import { buttonClass } from "@/components/Button";
 import { db } from "@/db";
 import { cards, decks } from "@/db/schema";
 import { isUuid } from "@/lib/ids";
+import { shuffle } from "@/lib/shuffle";
 
 type StudyPageProps = {
   params: Promise<{ id: string }>;
@@ -62,7 +63,10 @@ async function StudyContent({ params, searchParams }: StudyPageProps) {
     .orderBy(asc(cards.dueAt), asc(cards.id));
 
   return (
-    <StudySession key={session ?? "default"} cards={dueCards} />
+    <StudySession
+      key={session ?? "default"}
+      cards={shuffle(dueCards, Math.random)}
+    />
   );
 }
 
