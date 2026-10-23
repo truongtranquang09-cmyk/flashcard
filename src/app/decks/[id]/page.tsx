@@ -5,6 +5,7 @@ import { deleteCard } from "@/app/decks/[id]/actions";
 import { CardFormModal } from "@/app/decks/[id]/CardFormModal";
 import { Button, buttonClass } from "@/components/Button";
 import { DeleteButton } from "@/components/DeleteButton";
+import { SpeakButton } from "@/components/SpeakButton";
 import { db } from "@/db";
 import { cards, decks } from "@/db/schema";
 import { isUuid } from "@/lib/ids";
@@ -157,18 +158,21 @@ async function DeckContent({ params, searchParams }: DeckPageProps) {
               className="flex items-start gap-3 rounded-2xl border border-slate-200 bg-white p-4"
             >
               <div className="grid flex-1 gap-1 sm:grid-cols-2 sm:gap-4">
-                <p className="font-jp text-lg font-semibold text-slate-800">
-                  {card.reading?.trim() ? (
-                    <ruby>
-                      {card.front}
-                      <rt className="text-xs font-normal text-slate-500">
-                        {card.reading}
-                      </rt>
-                    </ruby>
-                  ) : (
-                    card.front
-                  )}
-                </p>
+                <div className="flex flex-wrap items-start gap-2">
+                  <p className="font-jp text-lg font-semibold text-slate-800">
+                    {card.reading?.trim() ? (
+                      <ruby>
+                        {card.front}
+                        <rt className="text-xs font-normal text-slate-500">
+                          {card.reading}
+                        </rt>
+                      </ruby>
+                    ) : (
+                      card.front
+                    )}
+                  </p>
+                  <SpeakButton front={card.front} reading={card.reading} />
+                </div>
                 <p className="text-sm text-slate-600 sm:pt-1">{card.back}</p>
               </div>
               <div className="flex shrink-0 items-center gap-2">

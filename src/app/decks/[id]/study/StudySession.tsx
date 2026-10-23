@@ -4,7 +4,14 @@ import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { submitReview } from "@/app/decks/[id]/study/actions";
 import { buttonClass } from "@/components/Button";
+import { SpeakButton } from "@/components/SpeakButton";
 import { previewIntervalDays, type Sm2State } from "@/lib/sm2";
+import {
+  getSpeechText,
+  speakJapanese,
+  stopSpeaking,
+  useJapaneseSpeechAvailable,
+} from "@/lib/speech";
 
 export type StudyCard = Sm2State & {
   id: string;
@@ -72,8 +79,12 @@ export function StudySession({ cards }: StudySessionProps) {
   const reversed = direction === "vi-ja";
   const hasReading = Boolean(card?.reading?.trim());
   const canShowHint = !reversed && !revealed && !hintShown && hasReading;
+  const speechAvailable = useJapaneseSpeechAvailable();
+  const showSpeak = speechAvailable && (revealed || !reversed);
+  const speechText = card ? getSpeechText(card.front, card.reading) : "";
 
   const toggleDirection = useCallback(() => {
+    stopSpeaking();
     setDirection((current) => (current === "ja-vi" ? "vi-ja" : "ja-vi"));
     setRevealed(false);
     setHintShown(false);
@@ -97,12 +108,17 @@ export function StudySession({ cards }: StudySessionProps) {
         return;
       }
 
+      stopSpeaking();
       setIndex((current) => current + 1);
       setRevealed(false);
       setHintShown(false);
     },
     [card, revealed],
   );
+
+  useEffect(() => {
+    return () => stopSpeaking();
+  }, []);
 
   useEffect(() => {
     function handleKeyDown(event: KeyboardEvent) {
@@ -120,6 +136,12 @@ export function StudySession({ cards }: StudySessionProps) {
         return;
       }
 
+      if ((event.key === "p" || event.key === "P") && showSpeak) {
+        event.preventDefault();
+        speakJapanese(speechText);
+        return;
+      }
+
       if (!revealed || pending) return;
       const rating = RATINGS.find((item) => item.key === event.key);
       if (rating) {
@@ -130,7 +152,7 @@ export function StudySession({ cards }: StudySessionProps) {
 
     document.addEventListener("keydown", handleKeyDown);
     return () => document.removeEventListener("keydown", handleKeyDown);
-  }, [finished, revealed, pending, rate, canShowHint]);
+  }, [finished, revealed, pending, rate, canShowHint, showSpeak, speechText]);
 
   if (queue.length === 0) {
     return (
@@ -178,7 +200,7 @@ export function StudySession({ cards }: StudySessionProps) {
         onToggleDirection={toggleDirection}
       />
 
-      <div className="[perspective:1200px]">
+      <div className="relative [perspective:1200px]">
         <button
           type="button"
           aria-label={revealed ? "Mặt sau thẻ" : "Lật thẻ"}
@@ -261,6 +283,13 @@ export function StudySession({ cards }: StudySessionProps) {
             )}
           </div>
         </button>
+        {showSpeak && (
+          <SpeakButton
+            front={card.front}
+            reading={card.reading}
+            className="absolute right-3 top-3 z-10 shadow-sm"
+          />
+        )}
       </div>
 
       {error && (
