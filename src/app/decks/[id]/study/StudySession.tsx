@@ -19,6 +19,13 @@ type StudySessionProps = {
   cards: StudyCard[];
 };
 
+type StudyDirection = "ja-vi" | "vi-ja";
+
+const DIRECTION_LABELS: Record<StudyDirection, string> = {
+  "ja-vi": "Nhật → Việt",
+  "vi-ja": "Việt → Nhật",
+};
+
 const RATINGS = [
   {
     quality: 0,
@@ -55,11 +62,22 @@ export function StudySession({ cards }: StudySessionProps) {
   const [index, setIndex] = useState(0);
   const [revealed, setRevealed] = useState(false);
   const [pending, setPending] = useState(false);
+  const [direction, setDirection] = useState<StudyDirection>("ja-vi");
+  const [hintShown, setHintShown] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const inFlight = useRef(false);
 
   const card = queue[index];
   const finished = index >= queue.length;
+  const reversed = direction === "vi-ja";
+  const hasReading = Boolean(card?.reading?.trim());
+  const canShowHint = !reversed && !revealed && !hintShown && hasReading;
+
+  const toggleDirection = useCallback(() => {
+    setDirection((current) => (current === "ja-vi" ? "vi-ja" : "ja-vi"));
+    setRevealed(false);
+    setHintShown(false);
+  }, []);
 
   const rate = useCallback(
     async (quality: number) => {
@@ -81,6 +99,7 @@ export function StudySession({ cards }: StudySessionProps) {
 
       setIndex((current) => current + 1);
       setRevealed(false);
+      setHintShown(false);
     },
     [card, revealed],
   );
@@ -95,6 +114,12 @@ export function StudySession({ cards }: StudySessionProps) {
         return;
       }
 
+      if ((event.key === "h" || event.key === "H") && canShowHint) {
+        event.preventDefault();
+        setHintShown(true);
+        return;
+      }
+
       if (!revealed || pending) return;
       const rating = RATINGS.find((item) => item.key === event.key);
       if (rating) {
@@ -105,7 +130,7 @@ export function StudySession({ cards }: StudySessionProps) {
 
     document.addEventListener("keydown", handleKeyDown);
     return () => document.removeEventListener("keydown", handleKeyDown);
-  }, [finished, revealed, pending, rate]);
+  }, [finished, revealed, pending, rate, canShowHint]);
 
   if (queue.length === 0) {
     return (
@@ -145,7 +170,13 @@ export function StudySession({ cards }: StudySessionProps) {
 
   return (
     <div className="flex flex-col gap-4">
-      <ProgressHeader reviewed={index} total={queue.length} showExit />
+      <ProgressHeader
+        reviewed={index}
+        total={queue.length}
+        showExit
+        direction={direction}
+        onToggleDirection={toggleDirection}
+      />
 
       <div className="[perspective:1200px]">
         <button
@@ -158,34 +189,66 @@ export function StudySession({ cards }: StudySessionProps) {
             revealed ? "[transform:rotateY(180deg)]" : ""
           }`}
         >
-          <div className="absolute inset-0 flex flex-col items-center justify-center rounded-2xl bg-white p-6 [backface-visibility:hidden]">
+          <div className="absolute inset-0 flex flex-col items-center justify-center overflow-y-auto rounded-2xl bg-white p-6 [backface-visibility:hidden]">
             <p className="text-xs uppercase tracking-wide text-slate-400">
               Mặt trước
             </p>
-            <p className="font-jp mt-4 text-center text-5xl font-semibold text-slate-800 sm:text-6xl">
-              {card.front}
-            </p>
+            {reversed ? (
+              <p className="mt-4 max-w-full whitespace-pre-line break-words text-center text-3xl font-semibold leading-snug text-slate-800 sm:text-4xl">
+                {card.back}
+              </p>
+            ) : (
+              <p className="font-jp mt-4 text-center text-5xl font-semibold text-slate-800 sm:text-6xl">
+                {hintShown && hasReading ? (
+                  <ruby>
+                    {card.front}
+                    <rt className="text-sm font-normal text-slate-500">
+                      {card.reading}
+                    </rt>
+                  </ruby>
+                ) : (
+                  card.front
+                )}
+              </p>
+            )}
             <p className="mt-6 text-sm text-slate-400">
               Bấm vào thẻ hoặc nhấn Space để lật
             </p>
           </div>
 
           <div className="absolute inset-0 flex flex-col items-center justify-center overflow-y-auto rounded-2xl bg-white p-6 [backface-visibility:hidden] [transform:rotateY(180deg)]">
-            <p className="font-jp text-center text-3xl font-semibold text-slate-800">
-              {card.reading?.trim() ? (
-                <ruby>
-                  {card.front}
-                  <rt className="text-sm font-normal text-slate-500">
-                    {card.reading}
-                  </rt>
-                </ruby>
-              ) : (
-                card.front
-              )}
-            </p>
-            <p className="mt-3 text-center text-lg text-slate-700">
-              {card.back}
-            </p>
+            {reversed ? (
+              <p className="font-jp max-w-full text-center text-4xl font-semibold text-slate-800 sm:text-5xl">
+                {card.reading?.trim() ? (
+                  <ruby>
+                    {card.front}
+                    <rt className="text-sm font-normal text-slate-500">
+                      {card.reading}
+                    </rt>
+                  </ruby>
+                ) : (
+                  card.front
+                )}
+              </p>
+            ) : (
+              <>
+                <p className="font-jp text-center text-3xl font-semibold text-slate-800">
+                  {card.reading?.trim() ? (
+                    <ruby>
+                      {card.front}
+                      <rt className="text-sm font-normal text-slate-500">
+                        {card.reading}
+                      </rt>
+                    </ruby>
+                  ) : (
+                    card.front
+                  )}
+                </p>
+                <p className="mt-3 text-center text-lg text-slate-700">
+                  {card.back}
+                </p>
+              </>
+            )}
             {card.example && (
               <div className="mt-4 w-full border-t border-slate-200 pt-4 text-center">
                 <p className="font-jp text-base text-slate-700">
@@ -232,7 +295,17 @@ export function StudySession({ cards }: StudySessionProps) {
           </p>
         </div>
       ) : (
-        <div className="flex justify-center">
+        <div className="flex flex-wrap justify-center gap-2">
+          {canShowHint && (
+            <button
+              type="button"
+              onClick={() => setHintShown(true)}
+              title="Nhấn phím H"
+              className={buttonClass("secondary")}
+            >
+              Gợi ý cách đọc
+            </button>
+          )}
           <button
             type="button"
             onClick={() => setRevealed(true)}
@@ -250,29 +323,48 @@ type ProgressHeaderProps = {
   reviewed: number;
   total: number;
   showExit: boolean;
+  direction?: StudyDirection;
+  onToggleDirection?: () => void;
 };
 
 function ProgressHeader({
   reviewed,
   total,
   showExit,
+  direction = "ja-vi",
+  onToggleDirection,
 }: ProgressHeaderProps) {
   const progress = Math.round((reviewed / total) * 100);
+  const nextDirection: StudyDirection = direction === "ja-vi" ? "vi-ja" : "ja-vi";
 
   return (
     <>
-      <div className="flex items-center justify-between gap-3">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <p className="text-sm text-slate-500">
           Đã học {reviewed} / {total}
         </p>
         {showExit && (
-          <Link
-            href="/"
-            prefetch={false}
-            className={buttonClass("secondary")}
-          >
-            Thoát
-          </Link>
+          <div className="ml-auto flex items-center gap-2">
+            <button
+              type="button"
+              onClick={onToggleDirection}
+              aria-label={`Chiều đang học: ${DIRECTION_LABELS[direction]}. Bấm để đổi sang ${DIRECTION_LABELS[nextDirection]}`}
+              title={`Đổi sang ${DIRECTION_LABELS[nextDirection]}`}
+              className={buttonClass("secondary")}
+            >
+              <span className="text-slate-500">Chiều:</span>
+              <span className="font-semibold text-indigo-600">
+                {DIRECTION_LABELS[direction]}
+              </span>
+            </button>
+            <Link
+              href="/"
+              prefetch={false}
+              className={buttonClass("secondary")}
+            >
+              Thoát
+            </Link>
+          </div>
         )}
       </div>
       <div
