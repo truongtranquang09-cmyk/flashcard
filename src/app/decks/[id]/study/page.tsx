@@ -65,6 +65,7 @@ async function StudyContent({ params, searchParams }: StudyPageProps) {
   return (
     <StudySession
       key={session ?? "default"}
+      deckId={deck.id}
       cards={shuffle(dueCards, Math.random)}
     />
   );

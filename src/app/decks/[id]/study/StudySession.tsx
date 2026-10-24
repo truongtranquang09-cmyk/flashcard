@@ -23,6 +23,7 @@ export type StudyCard = Sm2State & {
 };
 
 type StudySessionProps = {
+  deckId: string;
   cards: StudyCard[];
 };
 
@@ -64,10 +65,11 @@ const RATINGS = [
   },
 ] as const;
 
-export function StudySession({ cards }: StudySessionProps) {
+export function StudySession({ deckId, cards }: StudySessionProps) {
   const [queue] = useState<StudyCard[]>(cards);
   const [index, setIndex] = useState(0);
   const [revealed, setRevealed] = useState(false);
+  const [hasRevealed, setHasRevealed] = useState(false);
   const [pending, setPending] = useState(false);
   const [direction, setDirection] = useState<StudyDirection>("ja-vi");
   const [hintShown, setHintShown] = useState(false);
@@ -83,16 +85,22 @@ export function StudySession({ cards }: StudySessionProps) {
   const showSpeak = speechAvailable && (revealed || !reversed);
   const speechText = card ? getSpeechText(card.front, card.reading) : "";
 
+  const flipCard = useCallback(() => {
+    setRevealed((current) => !current);
+    setHasRevealed(true);
+  }, []);
+
   const toggleDirection = useCallback(() => {
     stopSpeaking();
     setDirection((current) => (current === "ja-vi" ? "vi-ja" : "ja-vi"));
     setRevealed(false);
+    setHasRevealed(false);
     setHintShown(false);
   }, []);
 
   const rate = useCallback(
     async (quality: number) => {
-      if (!card || !revealed || inFlight.current) return;
+      if (!card || !hasRevealed || inFlight.current) return;
 
       inFlight.current = true;
       setPending(true);
@@ -111,9 +119,10 @@ export function StudySession({ cards }: StudySessionProps) {
       stopSpeaking();
       setIndex((current) => current + 1);
       setRevealed(false);
+      setHasRevealed(false);
       setHintShown(false);
     },
-    [card, revealed],
+    [card, hasRevealed],
   );
 
   useEffect(() => {
@@ -126,7 +135,7 @@ export function StudySession({ cards }: StudySessionProps) {
 
       if (event.key === " ") {
         event.preventDefault();
-        if (!revealed) setRevealed(true);
+        flipCard();
         return;
       }
 
@@ -142,7 +151,7 @@ export function StudySession({ cards }: StudySessionProps) {
         return;
       }
 
-      if (!revealed || pending) return;
+      if (!hasRevealed || pending) return;
       const rating = RATINGS.find((item) => item.key === event.key);
       if (rating) {
         event.preventDefault();
@@ -152,7 +161,16 @@ export function StudySession({ cards }: StudySessionProps) {
 
     document.addEventListener("keydown", handleKeyDown);
     return () => document.removeEventListener("keydown", handleKeyDown);
-  }, [finished, revealed, pending, rate, canShowHint, showSpeak, speechText]);
+  }, [
+    finished,
+    hasRevealed,
+    pending,
+    rate,
+    flipCard,
+    canShowHint,
+    showSpeak,
+    speechText,
+  ]);
 
   if (queue.length === 0) {
     return (
@@ -160,8 +178,12 @@ export function StudySession({ cards }: StudySessionProps) {
         <p className="text-slate-600">
           Không có thẻ đến hạn hôm nay. Hãy quay lại sau nhé!
         </p>
-        <Link href="/" prefetch={false} className={`${buttonClass()} mt-4`}>
-          Về trang chủ
+        <Link
+          href={`/decks/${deckId}`}
+          prefetch={false}
+          className={`${buttonClass()} mt-4`}
+        >
+          Quay lại deck
         </Link>
       </div>
     );
@@ -174,6 +196,7 @@ export function StudySession({ cards }: StudySessionProps) {
           reviewed={index}
           total={queue.length}
           showExit={false}
+          deckId={deckId}
         />
         <div className="rounded-2xl border border-slate-200 bg-white p-8 text-center">
           <p className="text-lg font-semibold text-slate-800">
@@ -182,8 +205,12 @@ export function StudySession({ cards }: StudySessionProps) {
           <p className="mt-1 text-sm text-slate-500">
             Các thẻ vừa ôn sẽ quay lại khi đến hạn.
           </p>
-          <Link href="/" prefetch={false} className={`${buttonClass()} mt-4`}>
-            Về trang chủ
+          <Link
+            href={`/decks/${deckId}`}
+            prefetch={false}
+            className={`${buttonClass()} mt-4`}
+          >
+            Quay lại deck
           </Link>
         </div>
       </div>
@@ -196,6 +223,7 @@ export function StudySession({ cards }: StudySessionProps) {
         reviewed={index}
         total={queue.length}
         showExit
+        deckId={deckId}
         direction={direction}
         onToggleDirection={toggleDirection}
       />
@@ -203,10 +231,8 @@ export function StudySession({ cards }: StudySessionProps) {
       <div className="relative [perspective:1200px]">
         <button
           type="button"
-          aria-label={revealed ? "Mặt sau thẻ" : "Lật thẻ"}
-          onClick={() => {
-            if (!revealed) setRevealed(true);
-          }}
+          aria-label={revealed ? "Lật về mặt trước" : "Lật sang mặt sau"}
+          onClick={flipCard}
           className={`relative block aspect-[3/2] w-full rounded-2xl border border-slate-200 bg-white shadow-sm transition-transform duration-[400ms] [transform-style:preserve-3d] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600 ${
             revealed ? "[transform:rotateY(180deg)]" : ""
           }`}
@@ -298,7 +324,29 @@ export function StudySession({ cards }: StudySessionProps) {
         </p>
       )}
 
-      {revealed ? (
+      {!revealed && (
+        <div className="flex flex-wrap justify-center gap-2">
+          {canShowHint && (
+            <button
+              type="button"
+              onClick={() => setHintShown(true)}
+              title="Nhấn phím H"
+              className={buttonClass("secondary")}
+            >
+              Gợi ý cách đọc
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={flipCard}
+            className={buttonClass("primary")}
+          >
+            Lật thẻ
+          </button>
+        </div>
+      )}
+
+      {hasRevealed && (
         <div>
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
             {RATINGS.map((rating) => {
@@ -323,26 +371,6 @@ export function StudySession({ cards }: StudySessionProps) {
             Phím tắt: 1 Quên · 2 Khó · 3 Tốt · 4 Dễ
           </p>
         </div>
-      ) : (
-        <div className="flex flex-wrap justify-center gap-2">
-          {canShowHint && (
-            <button
-              type="button"
-              onClick={() => setHintShown(true)}
-              title="Nhấn phím H"
-              className={buttonClass("secondary")}
-            >
-              Gợi ý cách đọc
-            </button>
-          )}
-          <button
-            type="button"
-            onClick={() => setRevealed(true)}
-            className={buttonClass("primary")}
-          >
-            Lật thẻ
-          </button>
-        </div>
       )}
     </div>
   );
@@ -352,6 +380,7 @@ type ProgressHeaderProps = {
   reviewed: number;
   total: number;
   showExit: boolean;
+  deckId: string;
   direction?: StudyDirection;
   onToggleDirection?: () => void;
 };
@@ -360,6 +389,7 @@ function ProgressHeader({
   reviewed,
   total,
   showExit,
+  deckId,
   direction = "ja-vi",
   onToggleDirection,
 }: ProgressHeaderProps) {
@@ -387,7 +417,7 @@ function ProgressHeader({
               </span>
             </button>
             <Link
-              href="/"
+              href={`/decks/${deckId}`}
               prefetch={false}
               className={buttonClass("secondary")}
             >
