@@ -1,4 +1,4 @@
-import { and, count, desc, eq, ilike, or } from "drizzle-orm";
+import { and, count, desc, eq, ilike, lte, or } from "drizzle-orm";
 import Link from "next/link";
 import { Suspense } from "react";
 import { deleteCard } from "@/app/decks/[id]/actions";
@@ -6,6 +6,7 @@ import { CardFormModal } from "@/app/decks/[id]/CardFormModal";
 import { Button, buttonClass } from "@/components/Button";
 import { DeleteButton } from "@/components/DeleteButton";
 import { SpeakButton } from "@/components/SpeakButton";
+import { StudyButton } from "@/components/StudyButton";
 import { db } from "@/db";
 import { cards, decks } from "@/db/schema";
 import { isUuid } from "@/lib/ids";
@@ -42,6 +43,11 @@ async function DeckContent({ params, searchParams }: DeckPageProps) {
     .select({ total: count() })
     .from(cards)
     .where(eq(cards.deckId, id));
+
+  const [{ total: dueCount }] = await db
+    .select({ total: count() })
+    .from(cards)
+    .where(and(eq(cards.deckId, id), lte(cards.dueAt, new Date())));
 
   const q = (qParam ?? "").trim();
   const pattern = `%${q}%`;
@@ -90,6 +96,21 @@ async function DeckContent({ params, searchParams }: DeckPageProps) {
             </span>
           </h1>
           <div className="flex flex-wrap items-center gap-2">
+            {dueCount > 0 ? (
+              <StudyButton deckId={deck.id} className={buttonClass("primary")}>
+                Học ngay
+              </StudyButton>
+            ) : (
+              <span
+                aria-disabled="true"
+                className={`${buttonClass("primary")} cursor-not-allowed opacity-50`}
+              >
+                Học ngay
+              </span>
+            )}
+            <span className="text-sm text-slate-500">
+              {dueCount} thẻ đến hạn
+            </span>
             {deckCardCount > 0 && (
               <>
                 <a
